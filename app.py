@@ -42,6 +42,19 @@ import requests
 import urllib3
 urllib3.disable_warnings()
 
+import socket
+import urllib3.util.connection as urllib3_cn
+
+def _allowed_gai_family():
+    # Force IPv4-only address resolution. Some hosts (Render's free tier included)
+    # have broken or black-holed outbound IPv6 — if urllib3 tries an IPv6 address
+    # first and the connection just hangs (dropped, not rejected), it can stall for
+    # 60-120+ seconds before falling back to IPv4, and this happens during DNS/connect,
+    # BEFORE any requests-level `timeout=` kicks in, so no code-level timeout catches it.
+    return socket.AF_INET
+
+urllib3_cn.allowed_gai_family = _allowed_gai_family
+
 from bs4 import BeautifulSoup
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
