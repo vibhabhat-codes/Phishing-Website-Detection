@@ -93,8 +93,11 @@ python -m waitress --host=127.0.0.1 --port=5000 app:app
 
 ## 📄 License
 
-*(add your license here, e.g. MIT)*
+MIT
 
 ## 👥 Team
 
-*(add team member names here)*
+Vibha Bhat
+Manya Kalkur
+Kadimetla Varsha
+Abhijna Prabhu
