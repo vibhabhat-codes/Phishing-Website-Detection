@@ -73,16 +73,29 @@ ALL_FEATURES  = artifacts['all_features']
 ESTATS        = artifacts['entropy_stats']
 print("[Boot] Model ready.")
 
-# ── SHAP explainer (built once at boot, reused per request) ─────────────────
+# ── SHAP explainer (lazy — built on first actual use, not at boot) ──────────
+# Building this at boot delayed startup and added memory pressure right when the
+# process is most vulnerable to being killed by a host's startup/health-check
+# timeout. Deferring it to the first real prediction spreads that cost out and
+# means a slow/failed build never blocks the server from coming up at all.
 SHAP_EXPLAINER = None
-if HAS_SHAP:
+SHAP_EXPLAINER_ATTEMPTED = False
+
+def get_shap_explainer():
+    global SHAP_EXPLAINER, SHAP_EXPLAINER_ATTEMPTED
+    if SHAP_EXPLAINER_ATTEMPTED:
+        return SHAP_EXPLAINER
+    SHAP_EXPLAINER_ATTEMPTED = True
+    if not HAS_SHAP:
+        return None
     try:
         # The LightGBM "url_stream" base learner is fast and TreeExplainer-friendly.
         SHAP_EXPLAINER = shap.TreeExplainer(model.named_estimators_['url_stream'])
-        print("[Boot] SHAP explainer ready.")
+        print("[Info] SHAP explainer built on first use.")
     except Exception as e:
         print(f"[WARN] Could not build SHAP explainer, disabling explanations: {e}")
         SHAP_EXPLAINER = None
+    return SHAP_EXPLAINER
 
 # ── SQLite: scan log + feedback (powers the analytics dashboard) ────────────
 def init_db():
@@ -264,11 +277,20 @@ def extract_url_features(url):
     return f
 
 
-def extract_html_features(url, timeout=8):
+def extract_html_features(url, timeout=4):
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                    'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        resp = requests.get(url, timeout=timeout, headers=headers, allow_redirects=True, verify=False)
+        session = requests.Session()
+        session.max_redirects = 3  # cap redirect hops — an unbounded chain (each up to `timeout`
+                                    # seconds) can otherwise stack up past a host's gateway timeout
+        resp = session.get(
+            url,
+            timeout=(3, timeout),   # (connect timeout, read timeout) — bounds worst-case per hop
+                                     # to ~7s, so 1 initial request + up to 3 redirects stays
+                                     # comfortably under ~28s total even in the worst case
+            headers=headers, allow_redirects=True, verify=False,
+        )
         soup = BeautifulSoup(resp.text, 'html.parser')
         redirect_chain = [r.url for r in resp.history] + [resp.url]
     except Exception:
@@ -353,10 +375,11 @@ def compute_suspicion_score_single(features, estats):
 
 def compute_shap_top_features(X_sc, top_n=5):
     """Returns the top-N features pushing this prediction, or [] if SHAP unavailable."""
-    if SHAP_EXPLAINER is None:
+    explainer = get_shap_explainer()
+    if explainer is None:
         return []
     try:
-        sv = SHAP_EXPLAINER.shap_values(X_sc)
+        sv = explainer.shap_values(X_sc)
         sv = np.array(sv).reshape(-1)  # (n_features,) — contribution toward "phishing"
         order = np.argsort(-np.abs(sv))[:top_n]
         out = []
@@ -486,10 +509,7 @@ def predict():
     if not data or 'url' not in data:
         return jsonify({'error': 'Provide {"url": "..."}'}), 400
 
-    result, signals = run_single_prediction(
-    data['url'],
-    check_safe_browse=False
-)
+    result, signals = run_single_prediction(data['url'])
     result['scan_id'] = log_scan(result, signals)
     return jsonify(result)
 
