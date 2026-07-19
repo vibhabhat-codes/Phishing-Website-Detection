@@ -1276,12 +1276,20 @@ function svgTrend(trend) {
   if (n === 0) return `<div class="dash-empty" style="padding:50px 10px">No data yet</div>`;
 
   if (n === 1) {
-    const y = padT + plotH * (1 - trend[0].avg_suspicion);
+    const val = Math.min(1, trend[0].avg_suspicion);
+    const y = padT + plotH * (1 - val);
+    const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
+      const gy = padT + plotH * (1 - f);
+      return `<line x1="${padL}" y1="${gy}" x2="${W-padR}" y2="${gy}" stroke="#162036" stroke-width="1"/>
+              <text x="${padL - 6}" y="${gy + 3}" text-anchor="end" fill="#4a6a99" font-family="Space Mono" font-size="8">${f}</text>`;
+    }).join('');
     return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">
-      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="#162036"/>
-      <line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#162036"/>
+      ${gridLines}
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H-padB}" stroke="#243252" stroke-width="1.5"/>
+      <line x1="${padL}" y1="${H-padB}" x2="${W-padR}" y2="${H-padB}" stroke="#243252" stroke-width="1.5"/>
       <circle cx="${padL + plotW/2}" cy="${y}" r="4" fill="#00d4ff"/>
-      <text x="${padL + plotW/2}" y="${H-8}" text-anchor="middle" fill="#4a6a99" font-family="Space Mono" font-size="9">${trend[0].date}</text>
+      <text x="${padL + plotW/2}" y="${y - 12}" text-anchor="middle" fill="#e2eeff" font-family="Space Mono" font-size="10" font-weight="700">${trend[0].avg_suspicion}</text>
+      <text x="${padL + plotW/2}" y="${H-8}" text-anchor="middle" fill="#4a6a99" font-family="Space Mono" font-size="9">${trend[0].date} (only 1 day of data so far)</text>
     </svg>`;
   }
 
