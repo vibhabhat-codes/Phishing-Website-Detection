@@ -97,7 +97,7 @@ MIT
 
 ## 👥 Team
 
-Vibha Bhat
-Manya Kalkur
-Kadimetla Varsha
+Vibha Bhat,
+Manya Kalkur,
+Kadimetla Varsha,
 Abhijna Prabhu
