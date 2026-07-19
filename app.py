@@ -486,7 +486,10 @@ def predict():
     if not data or 'url' not in data:
         return jsonify({'error': 'Provide {"url": "..."}'}), 400
 
-    result, signals = run_single_prediction(data['url'])
+    result, signals = run_single_prediction(
+    data['url'],
+    check_safe_browse=False
+)
     result['scan_id'] = log_scan(result, signals)
     return jsonify(result)
 
