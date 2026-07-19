@@ -1,0 +1,5 @@
+.venv/
+scans.db
+__pycache__/
+*.pyc
+.vscode/
